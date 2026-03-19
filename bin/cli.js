@@ -61,9 +61,10 @@ async function main() {
     console.log(`🚧 Changes detected in '${amplifyFolder}'. Running deployment command...`);
     
     // 3. Spawn the user-provided command
-    const [command, ...commandArgs] = args;
+    // Join the arguments safely to avoid Node.js deprecation warning with shell: true and array args
+    const fullCommand = args.join(' ');
     
-    const child = spawn(command, commandArgs, {
+    const child = spawn(fullCommand, {
       stdio: 'inherit',
       shell: true
     });
