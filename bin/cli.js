@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const { execSync, spawn } = require('child_process');
+const fs = require('fs');
 
 function runCommand(command) {
   try {
@@ -20,9 +21,25 @@ async function main() {
     process.exit(1);
   }
 
-  const amplifyFolder = 'amplify';
+  const amplifyFolder = process.env.SKIP_AMPLIFY_FOLDER || 'amplify';
 
   try {
+    // 0. Ensure git is installed/available
+    try {
+      execSync('git --version', { stdio: 'ignore' });
+    } catch (e) {
+      console.warn('⚠️ Git is not installed or accessible. Cannot verify changes. Assuming changes exist.');
+      console.log(`🚧 Running deployment command...`);
+      const fullCommand = args.join(' ');
+      const child = spawn(fullCommand, { stdio: 'inherit', shell: true });
+      child.on('close', (code) => process.exit(code || 0));
+      child.on('error', (err) => {
+        console.error(`❌ Failed to start command: ${err.message}`);
+        process.exit(1);
+      });
+      return;
+    }
+
     // 1. Ensure git history if shallow clone
     const isShallow = runCommand('git rev-parse --is-shallow-repository');
     if (isShallow === 'true') {
@@ -55,6 +72,27 @@ async function main() {
 
     if (diffStatus === 0) {
       console.log(`✅ No changes detected in '${amplifyFolder}'. Skipping backend deployment...`);
+      
+      // Auto-generate outputs in Amplify CI/CD if skipping
+      if (process.env.AWS_APP_ID && process.env.AWS_BRANCH) {
+        console.log(`📥 AWS Amplify CI/CD environment detected. Fetching latest backend outputs for the frontend...`);
+        try {
+          // Heuristic to detect Gen 2 vs Gen 1
+          if (fs.existsSync('amplify/backend.ts') || fs.existsSync('amplify/data/resource.ts') || fs.existsSync('amplify/package.json')) {
+            console.log('⚡ Detected Amplify Gen 2. Running ampx generate outputs...');
+            execSync(`npx ampx generate outputs --branch ${process.env.AWS_BRANCH} --app-id ${process.env.AWS_APP_ID}`, { stdio: 'inherit' });
+          } else {
+            console.log('⚡ Detected Amplify Gen 1. Running amplify pull...');
+            execSync('amplify pull --yes', { stdio: 'inherit' });
+          }
+          console.log(`✅ Backend outputs successfully fetched!`);
+        } catch (error) {
+          console.warn(`⚠️ Warning: Failed to fetch backend outputs automatically: ${error.message}`);
+        }
+      } else {
+        console.log(`ℹ️ Not running in AWS Amplify CI/CD (missing AWS_APP_ID). Skipping outputs generation.`);
+      }
+
       process.exit(0);
     }
 

@@ -13,6 +13,17 @@
     "deploy",
     "skip"
   ],
-  "author": "",
-  "license": "MIT"
+  "author": "Engineersticity",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Engineersticity/skip-amplify-backend.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Engineersticity/skip-amplify-backend/issues"
+  },
+  "homepage": "https://github.com/Engineersticity/skip-amplify-backend#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
