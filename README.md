@@ -38,7 +38,8 @@ backend:
       commands:
         - npm ci --cache .npm --prefer-offline
         # Wrap your deployment command with skip-amplify-backend
-        - npx skip-amplify-backend npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
+        # Note: Using --yes avoids interactive prompts in CI/CD environments
+        - npx --yes skip-amplify-backend npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
 artifacts:
   baseDirectory: .amplify
   files:
