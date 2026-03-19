@@ -1,9 +1,9 @@
 {
   "name": "skip-amplify-backend",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "A CLI wrapper to skip AWS Amplify backend updates if there are no changes in the amplify folder",
   "bin": {
-    "skip-amplify-backend": "./bin/cli.js"
+    "skip-amplify-backend": "bin/cli.js"
   },
   "keywords": [
     "aws",
@@ -17,7 +17,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Engineersticity/skip-amplify-backend.git"
+    "url": "git+https://github.com/Engineersticity/skip-amplify-backend.git"
   },
   "bugs": {
     "url": "https://github.com/Engineersticity/skip-amplify-backend/issues"
