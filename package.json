@@ -1,6 +1,6 @@
 {
   "name": "skip-amplify-backend",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A CLI wrapper to skip AWS Amplify backend updates if there are no changes in the amplify folder",
   "bin": {
     "skip-amplify-backend": "bin/cli.js"
