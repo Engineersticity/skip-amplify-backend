@@ -5,6 +5,9 @@
   "bin": {
     "skip-amplify-backend": "bin/cli.js"
   },
+  "files": [
+    "bin"
+  ],
   "keywords": [
     "aws",
     "amplify",
