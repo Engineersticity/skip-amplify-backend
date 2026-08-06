@@ -54,8 +54,45 @@ By default, the script watches the `amplify` folder based on standard AWS Amplif
 ```
 
 ## How it works
-1. Detects if it's running in a shallow cloned git repository, and if so, runs `git fetch --depth=2`.
-2. Runs `git diff --quiet HEAD^ HEAD -- amplify`.
-3. If the exit code is 0 (no changes), prints a success message and checks if it is running in an Amplify CI/CD environment (by checking for `AWS_APP_ID` and `AWS_BRANCH`).
-4. If in Amplify CI/CD, it automatically fetches your current backend config (`npx ampx generate outputs` for Gen 2 or `amplify pull` for Gen 1) so your frontend code doesn't break due to a missing outputs file.
-5. If the exit code is 1 (changes), spawns the user-provided deployment command passed as arguments.
+1. Detects if it's running in a shallow cloned git repository, and if so, deepens it with `git fetch` so history is available.
+2. Resolves the **baseline commit** to compare against (see below), fetching it on demand if it isn't in the shallow clone.
+3. Runs `git diff --quiet <baseline> HEAD -- amplify`.
+4. If there are no changes, prints a success message and checks if it is running in an Amplify CI/CD environment (by checking for `AWS_APP_ID` and `AWS_BRANCH`).
+5. If in Amplify CI/CD, it automatically fetches your current backend config (`npx ampx generate outputs` for Gen 2 or `amplify pull` for Gen 1) so your frontend code doesn't break due to a missing outputs file.
+6. If there are changes, spawns the user-provided deployment command passed as arguments.
+
+At every step where it can't be sure (git missing, baseline unresolvable, diff errors), it **fails safe by deploying** — it will never skip a deploy it isn't certain about.
+
+### How the baseline is chosen
+
+The baseline is the commit whose backend is currently live. The script resolves it in this order:
+
+1. **`SKIP_AMPLIFY_BASE_SHA`** — an explicit commit SHA, if you set it (escape hatch / advanced use).
+2. **Last successful Amplify build** — in Amplify CI/CD it calls the Amplify Jobs API (`aws amplify list-jobs`) and looks at the **immediately preceding build** on this branch. It uses that build's commit as the baseline **only** if the build was a clean `SUCCEED` identified by a real commit SHA. Otherwise (a failed/cancelled/running build, or a manual/webhook deploy whose `commitId` is `"HEAD"` rather than a SHA) it can't be sure what's live, so it **deploys to be safe**. It also deploys when there is no prior build at all (first deployment).
+3. **`HEAD^`** — the parent of the tip commit. A single-commit heuristic used whenever the Jobs API isn't available (no `amplify:ListJobs` permission, outside Amplify CI/CD, etc.). In Amplify CI/CD it logs a warning that multi-commit protection is inactive; set `SKIP_AMPLIFY_ALLOW_HEAD_PARENT=1` to acknowledge the heuristic and silence that warning.
+
+**Why not just `HEAD^`?** `HEAD^` only works when exactly one commit is deployed per build. If you push several commits at once (or rebase/fast-forward) and the backend change is in an earlier commit of that batch — not the branch tip — a `HEAD^ vs HEAD` diff misses it and **skips a deploy it shouldn't**. Diffing against the last *actually deployed* commit closes that gap and also avoids redundant deploys on manual redeploys of the same commit.
+
+**Fail-safe principle:** whenever the script can't be *certain* the backend is unchanged (git missing, baseline unresolvable, unreachable commit, unclear deploy history, diff error), it deploys. A redundant deploy is wasteful; a wrongly-skipped one ships a stale backend — so it always errs toward deploying.
+
+### Required IAM permission
+
+To read the last deployed commit, the Amplify **backend build role** needs the `amplify:ListJobs` permission. Add this statement to that role's policy:
+
+```json
+{
+  "Effect": "Allow",
+  "Action": "amplify:ListJobs",
+  "Resource": "arn:aws:amplify:*:*:apps/*/branches/*/jobs/*"
+}
+```
+
+This permission is **strongly recommended**. It's what lets the script diff against the last *actually deployed* commit and protect against multi-commit pushes, rebases, and manual redeploys.
+
+**Without it, the tool still works** — it falls back to the `HEAD^` heuristic and logs a warning that multi-commit protection is inactive. That fallback only compares the tip commit against its parent, so a backend change that lands in a non-tip commit of a multi-commit push can be wrongly skipped. Grant `amplify:ListJobs` to close that gap, or set `SKIP_AMPLIFY_ALLOW_HEAD_PARENT=1` to silence the warning if you accept the heuristic (e.g. your branch always deploys one commit at a time).
+
+### First deployment
+
+The first-ever build is always deployed, never skipped, **when `amplify:ListJobs` is granted**: the Jobs API reports no prior successful build, so the script deploys.
+
+Without the permission, the first build falls back to the `HEAD^` heuristic, so make sure your first commit is the one that introduces the `amplify/` folder — that way the heuristic sees a change and triggers the initial deploy.
